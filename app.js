@@ -1,14 +1,13 @@
-
 // ── CONFIGURACIÓN ──
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw2SDtNieSVMQlrBDmtVyfwnTyKPUKtSHPjsqw-pK4MvOPcQlAe7_bNyYmxTKyfAoGFAQ/exec"; // 👈 PEGAR AQUÍ LA URL DEL WEB APP
-
+ 
 // ── CACHÉ LOCAL de OPs consultadas en esta sesión ──
 // Evita llamar al Sheet cada vez que se rescana la misma OP
 const opCache = {};
-
+ 
 const PIPELINE_STEPS = ["CORTE", "MECANIZADO", "ENSAMBLAJE", "ACRISTALAR", "EXPEDICION"];
 const PIPELINE_LABELS = ["Corte", "Mecanizado", "Ensamblaje", "Acristalar", "Expedición"];
-
+ 
 let currentStation = "";
 let currentOperario = "";
 let currentOperarioName = "";
@@ -16,34 +15,34 @@ let currentOP = null;
 let timerInterval = null;
 let timerStart = null;
 let eventLog = [];
-
+ 
 // ── SETUP ──
 const LS_STATION_KEY = "rocheber_station";
 const LS_STATION_NAME_KEY = "rocheber_station_name";
-
+ 
 function iniciarSesion() {
   const estSelect = document.getElementById("sel-estacion");
   const op = document.getElementById("sel-operario");
   const est = estSelect.value;
   const opVal = op.value;
   if (!est || !opVal) { showToast("Selecciona estación y operario", "error"); return; }
-
+ 
   currentStation = est;
   currentOperario = opVal;
   currentOperarioName = op.options[op.selectedIndex].text;
-
+ 
   // Guardar estación en localStorage (persiste al cerrar/reabrir)
   localStorage.setItem(LS_STATION_KEY, est);
   localStorage.setItem(LS_STATION_NAME_KEY, formatStation(est));
-
+ 
   arrancarApp();
 }
-
+ 
 function arrancarApp() {
   document.getElementById("header-station-name").textContent = formatStation(currentStation);
   document.getElementById("setup-screen").style.display = "none";
   document.getElementById("app-screen").style.display = "flex";
-
+ 
   // Si hay una OP pendiente del QR escaneado, cargarla directamente
   if (pendingOP) {
     const opId = pendingOP;
@@ -51,14 +50,14 @@ function arrancarApp() {
     setTimeout(() => cargarOP(opId), 150); // pequeño delay para que la app esté visible
   }
 }
-
+ 
 // Cambiar solo el operario (turno nuevo), manteniendo la estación
 function cambiarTurno() {
   // Volver al setup pero con la estación ya seleccionada y bloqueada
   cancelarOP();
   document.getElementById("app-screen").style.display = "none";
   document.getElementById("setup-screen").style.display = "flex";
-
+ 
   // Pre-seleccionar la estación guardada y deshabilitarla
   const savedStation = localStorage.getItem(LS_STATION_KEY);
   if (savedStation) {
@@ -71,7 +70,7 @@ function cambiarTurno() {
   document.getElementById("sel-operario").value = "";
   showToast("Selecciona el operario del nuevo turno", "info");
 }
-
+ 
 // Olvidar la estación guardada (para cambiarla)
 function olvidarEstacion() {
   localStorage.removeItem(LS_STATION_KEY);
@@ -80,13 +79,13 @@ function olvidarEstacion() {
   document.getElementById("sel-estacion").value = "";
   document.getElementById("station-remembered").style.display = "none";
 }
-
+ 
 function mostrarBannerEstacion(stationId) {
   const banner = document.getElementById("station-remembered");
   document.getElementById("remembered-station-label").textContent = formatStation(stationId);
   banner.style.display = "block";
 }
-
+ 
 function formatStation(s) {
   const m = {
     CORTE: "✂ Corte de perfil",
@@ -101,39 +100,48 @@ function formatStation(s) {
   };
   return m[s] || s;
 }
-
+ 
 // ── CARGAR OP ──
 async function cargarOP(opId) {
   if (!opId) { showToast("Introduce un ID de orden", "error"); return; }
   opId = opId.toUpperCase().trim();
-
+ 
   if (!APPS_SCRIPT_URL) {
     showToast("⚠️ Configura la URL del Apps Script en app.js", "error");
     return;
   }
-
+ 
   if (opCache[opId]) {
     currentOP = opCache[opId];
     renderOP(currentOP);
     return;
   }
-
+ 
   mostrarCargando(true);
-
+ 
   try {
     // Llamar via Netlify Function proxy (evita CORS)
     const proxyUrl = `/proxy?action=getOP&op_id=${encodeURIComponent(opId)}`;
     const resp = await fetch(proxyUrl);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-
+    const text = await resp.text();
+ 
+    // Limpiar posibles caracteres extra antes de parsear
+    const clean = text.trim().replace(/^\)\]\}'/, "");
+    let data;
+    try {
+      data = JSON.parse(clean);
+    } catch(e) {
+      throw new Error("Respuesta inválida: " + text.slice(0, 80));
+    }
+ 
     mostrarCargando(false);
-
+ 
     if (!data.ok) {
       showToast(`Orden ${opId} no encontrada`, "error");
       return;
     }
-
+ 
     const op = {
       op_id:         data.orden.op_id        || opId,
       cliente:       data.orden.cliente       || "—",
@@ -146,18 +154,18 @@ async function cargarOP(opId) {
       material:      data.orden.material      || "—",
       estado_actual: data.orden.estado_actual || "CORTE",
     };
-
+ 
     opCache[opId] = op;
     currentOP = op;
     renderOP(currentOP);
-
+ 
   } catch (err) {
     mostrarCargando(false);
     showToast("Error: " + err.message, "error");
     console.error("Error consultando OP:", err);
   }
 }
-
+ 
 // Llamada al Apps Script via JSONP (evita bloqueo CORS del navegador)
 function llamarScript(params) {
   return new Promise((resolve, reject) => {
@@ -166,7 +174,7 @@ function llamarScript(params) {
       delete window[cbName];
       reject(new Error("Timeout"));
     }, 10000);
-
+ 
     window[cbName] = (data) => {
       clearTimeout(timeout);
       delete window[cbName];
@@ -174,11 +182,11 @@ function llamarScript(params) {
       if (script) script.remove();
       resolve(data);
     };
-
+ 
     const qs = Object.entries({ ...params, callback: cbName })
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .join("&");
-
+ 
     const script = document.createElement("script");
     script.id = "jsonp-script";
     script.src = `${APPS_SCRIPT_URL}?${qs}`;
@@ -191,7 +199,7 @@ function llamarScript(params) {
     document.head.appendChild(script);
   });
 }
-
+ 
 // Normalizar fecha — el Sheet puede devolver ISO o dd/mm/yyyy
 function normalizarFecha(fecha) {
   if (!fecha) return "—";
@@ -204,17 +212,17 @@ function normalizarFecha(fecha) {
   }
   return fecha;
 }
-
+ 
 function mostrarCargando(activo) {
   const loadingMsg = document.getElementById("loading-msg");
   if (loadingMsg) loadingMsg.style.display = activo ? "flex" : "none";
 }
-
+ 
 function renderOP(op) {
   // Header
   document.getElementById("header-op-id").textContent = op.op_id;
   document.getElementById("header-op-id").classList.remove("empty");
-
+ 
   // Card
   document.getElementById("card-op-id").textContent = op.op_id;
   document.getElementById("card-cliente").textContent = op.cliente;
@@ -222,7 +230,7 @@ function renderOP(op) {
   document.getElementById("card-dims").textContent = `${op.alto} × ${op.ancho} cm`;
   document.getElementById("card-cantidad").textContent = `${op.cantidad} uds`;
   document.getElementById("card-material").textContent = op.material;
-
+ 
   // Fecha entrega + días restantes
   const [d, m, y] = op.fecha_entrega.split("/").map(Number);
   const fechaObj = new Date(y, m-1, d);
@@ -244,25 +252,25 @@ function renderOP(op) {
     diasEl.className = "days ok";
     deliveryEl.className = "delivery-item";
   }
-
+ 
   // Pipeline — muestra dónde está este dispositivo
   renderPipeline();
   ocultarAvisoEstacion();
-
+ 
   // Limpiar timer anterior
   clearInterval(timerInterval);
   document.getElementById("timer-block").style.display = "none";
-
+ 
   const statusEl   = document.getElementById("card-status");
   const btnIniciar  = document.getElementById("btn-iniciar");
   const btnFinalizar = document.getElementById("btn-finalizar");
-
+ 
   // ¿Ya hemos iniciado esta OP en esta estación en esta sesión?
   const yaIniciada = eventLog.find(e =>
     e.op_id === op.op_id && e.estacion === currentStation && e.tipo === "INICIO" &&
     !eventLog.find(f => f.op_id === op.op_id && f.estacion === currentStation && f.tipo === "FIN" && f.ts > e.ts)
   );
-
+ 
   if (yaIniciada) {
     // Estaba en curso — restaurar timer
     statusEl.textContent = "En curso";
@@ -278,36 +286,36 @@ function renderOP(op) {
     btnIniciar.style.display = "block";
     btnFinalizar.style.display = "none";
   }
-
+ 
   document.getElementById("waiting-state").style.display = "none";
   document.getElementById("op-state").style.display = "flex";
   document.getElementById("action-area").style.display = "flex";
 }
-
+ 
 function renderPipeline() {
   const container = document.getElementById("pipeline");
   container.innerHTML = "";
   // La estación activa es siempre la del dispositivo, no el estado de la OP
   const miEstacion = currentStation.startsWith("ENSAMBLAJE") ? "ENSAMBLAJE" : currentStation;
   const activeIdx = PIPELINE_STEPS.indexOf(miEstacion);
-
+ 
   PIPELINE_STEPS.forEach((step, i) => {
     const div = document.createElement("div");
     div.className = "pipe-step";
     if (i === activeIdx) div.classList.add("active");
-
+ 
     const dot = document.createElement("div");
     dot.className = "pipe-dot";
     const label = document.createElement("span");
     label.className = "pipe-label";
     label.textContent = PIPELINE_LABELS[i];
-
+ 
     div.appendChild(dot);
     div.appendChild(label);
     container.appendChild(div);
   });
 }
-
+ 
 // ── REGISTRAR EVENTO ──
 function registrarEvento(tipo) {
   if (!currentOP) return;
@@ -322,10 +330,10 @@ function registrarEvento(tipo) {
     ts_str: formatTimestamp(ts)
   };
   eventLog.push(evento);
-
+ 
   // Enviar a Google Sheets (cuando esté configurado)
   enviarASheets(evento);
-
+ 
   if (tipo === "INICIO") {
     showToast(`▶ Iniciada ${currentOP.op_id}`, "success");
     timerStart = ts;
@@ -341,9 +349,9 @@ function registrarEvento(tipo) {
     setTimeout(() => cancelarOP(), 1500);
   }
 }
-
+ 
 // ── ENVÍO A SHEETS ──
-
+ 
 async function enviarASheets(evento) {
   if (!APPS_SCRIPT_URL) return; // Modo demo sin conexión
   try {
@@ -357,7 +365,7 @@ async function enviarASheets(evento) {
     console.warn("No se pudo enviar a Sheets:", e);
   }
 }
-
+ 
 // ── TIMER ──
 function startTimer() {
   clearInterval(timerInterval);
@@ -366,7 +374,7 @@ function startTimer() {
     el.textContent = calcularTiempo(timerStart, new Date());
   }, 1000);
 }
-
+ 
 function calcularTiempo(inicio, fin) {
   const secs = Math.floor((fin - inicio) / 1000);
   const h = String(Math.floor(secs / 3600)).padStart(2, "0");
@@ -374,7 +382,7 @@ function calcularTiempo(inicio, fin) {
   const s = String(secs % 60).padStart(2, "0");
   return `${h}:${m}:${s}`;
 }
-
+ 
 // ── LOG ──
 function addToLog(evento) {
   const list = document.getElementById("log-list");
@@ -393,7 +401,7 @@ function addToLog(evento) {
   if (list.children.length > 5) list.removeChild(list.lastChild);
   document.getElementById("log-section").style.display = "block";
 }
-
+ 
 // ── UI HELPERS ──
 function cancelarOP() {
   currentOP = null;
@@ -406,21 +414,21 @@ function cancelarOP() {
   document.getElementById("action-area").style.display = "none";
   document.getElementById("manual-op-input").value = "";
 }
-
+ 
 // ── ESCÁNER DE CÁMARA ──
 let scannerStream = null;
 let scannerAnimFrame = null;
 let scannerActive = false;
-
+ 
 async function abrirEscaner() {
   const overlay = document.getElementById("scanner-overlay");
   const video = document.getElementById("scanner-video");
   const status = document.getElementById("scanner-status");
-
+ 
   overlay.classList.add("show");
   scannerActive = true;
   status.textContent = "Iniciando cámara...";
-
+ 
   try {
     scannerStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
@@ -435,36 +443,36 @@ async function abrirEscaner() {
     console.error("Error cámara:", err);
   }
 }
-
+ 
 function escanearFrame() {
   if (!scannerActive) return;
   const video = document.getElementById("scanner-video");
   const canvas = document.getElementById("scanner-canvas");
-
+ 
   if (video.readyState === video.HAVE_ENOUGH_DATA) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
+ 
     const code = jsQR(imageData.data, imageData.width, imageData.height, {
       inversionAttempts: "dontInvert"
     });
-
+ 
     if (code) {
       // QR detectado — flash visual
       const flash = document.getElementById("scanner-result-flash");
       flash.classList.add("flash");
       setTimeout(() => flash.classList.remove("flash"), 200);
-
+ 
       // Extraer el ID de la OP de la URL o del texto directo
       let opId = code.data.trim();
       try {
         const url = new URL(opId);
         opId = url.searchParams.get("op") || opId;
       } catch(e) { /* no es una URL, usar el texto tal cual */ }
-
+ 
       cerrarEscaner();
       cargarOP(opId);
       return;
@@ -472,7 +480,7 @@ function escanearFrame() {
   }
   scannerAnimFrame = requestAnimationFrame(escanearFrame);
 }
-
+ 
 function cerrarEscaner() {
   scannerActive = false;
   cancelAnimationFrame(scannerAnimFrame);
@@ -482,11 +490,11 @@ function cerrarEscaner() {
   }
   document.getElementById("scanner-overlay").classList.remove("show");
 }
-
+ 
 function mostrarEscaneo() {
   document.getElementById("modal-overlay").classList.add("show");
 }
-
+ 
 function mostrarAvisoEstacion(msg) {
   let aviso = document.getElementById("aviso-estacion");
   if (!aviso) {
@@ -513,7 +521,7 @@ function mostrarAvisoEstacion(msg) {
   aviso.innerHTML = `<span style="font-size:18px;flex-shrink:0">⚠️</span><span>${msg}</span>`;
   aviso.style.display = "flex";
 }
-
+ 
 function ocultarAvisoEstacion() {
   const aviso = document.getElementById("aviso-estacion");
   if (aviso) aviso.style.display = "none";
@@ -521,7 +529,7 @@ function ocultarAvisoEstacion() {
 function cerrarModal() {
   document.getElementById("modal-overlay").classList.remove("show");
 }
-
+ 
 let toastTimeout;
 function showToast(msg, type = "info") {
   const t = document.getElementById("toast");
@@ -530,25 +538,25 @@ function showToast(msg, type = "info") {
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => t.classList.remove("show"), 3000);
 }
-
+ 
 function formatTimestamp(d) {
   return d.toISOString().replace('T', ' ').slice(0, 19);
 }
 function formatHora(d) {
   return d.toTimeString().slice(0, 5);
 }
-
+ 
 // ── ARRANQUE: recuperar estación guardada + manejar QR entrante ──
 let pendingOP = null; // OP escaneada antes de hacer login
-
+ 
 window.addEventListener("DOMContentLoaded", () => {
   const savedStation = localStorage.getItem(LS_STATION_KEY);
-
+ 
   // Capturar OP del QR (puede llegar antes o después del login)
   const params = new URLSearchParams(window.location.search);
   const opParam = params.get("op");
   if (opParam) pendingOP = opParam.toUpperCase().trim();
-
+ 
   if (savedStation) {
     // Dispositivo ya configurado → pre-seleccionar estación bloqueada
     const sel = document.getElementById("sel-estacion");
@@ -556,7 +564,7 @@ window.addEventListener("DOMContentLoaded", () => {
     sel.disabled = true;
     mostrarBannerEstacion(savedStation);
     currentStation = savedStation;
-
+ 
     if (pendingOP) {
       // Vino de un QR: indicar al operario qué OP va a procesar
       showToast(`QR detectado: ${pendingOP} — identifícate`, "info");
