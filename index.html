@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Rocheber · Estación de Trabajo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #161923;
+    --surface2: #1e2433;
+    --border: #2a3144;
+    --accent: #3b82f6;
+    --accent-dim: #1d3a6e;
+    --success: #22c55e;
+    --success-dim: #14532d;
+    --danger: #ef4444;
+    --danger-dim: #7f1d1d;
+    --warning: #f59e0b;
+    --text: #e8eaf0;
+    --text-dim: #7c8499;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── SETUP SCREEN ── */
+  #setup-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    gap: 24px;
+  }
+
+  .logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .logo-mark {
+    width: 56px; height: 56px;
+    background: var(--accent);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .logo h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo span { font-size: 12px; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; }
+
+  .setup-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .setup-card h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 8px; }
+  .field label { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+
+  select, input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    padding: 14px 16px;
+    width: 100%;
+    appearance: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  select:focus, input[type="text"]:focus { border-color: var(--accent); }
+  select option { background: #1e2433; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 16px;
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: 0.3px;
+  }
+  .btn-primary:active { opacity: 0.85; transform: scale(0.98); }
+
+  /* ── MAIN APP ── */
+  #app-screen { flex: 1; display: none; flex-direction: column; }
+
+  /* Header */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .header-left { display: flex; flex-direction: column; }
+  .header-station {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .header-op {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 1px;
+  }
+  .header-op.empty { color: var(--text-dim); font-size: 14px; }
+
+  .btn-scan {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .btn-scan:active { background: var(--accent); color: white; }
+
+  /* Waiting state */
+  #waiting-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 40px 24px;
+  }
+  .scan-icon {
+    width: 100px; height: 100px;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 48px;
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+    50% { box-shadow: 0 0 0 16px rgba(59,130,246,0.12); }
+  }
+  #waiting-state h2 { font-size: 18px; font-weight: 600; text-align: center; }
+  #waiting-state p { font-size: 14px; color: var(--text-dim); text-align: center; max-width: 280px; line-height: 1.5; }
+
+  /* Manual input for demo */
+  .manual-input {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .manual-input input {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 12px 14px;
+  }
+  .manual-input button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  /* OP Card */
+  #op-state {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    overflow-y: auto;
+  }
+
+  .op-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .op-card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .op-card-header .op-id {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: 1px;
+  }
+  .status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 20px;
+  }
+  .status-badge.en-curso {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+  .status-badge.pendiente {
+    background: var(--surface2);
+    color: var(--text-dim);
+  }
+  .status-badge.completado {
+    background: var(--success-dim);
+    color: var(--success);
+  }
+
+  .op-card-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .info-item {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .info-item.full { grid-column: 1 / -1; }
+  .info-item label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .info-item .value {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .info-item .value.big { font-size: 22px; font-family: var(--mono); }
+
+  .delivery-item {
+    background: var(--surface2);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 10px 10px 0;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .delivery-item.urgent { border-color: var(--danger); }
+  .delivery-item.warning { border-color: var(--warning); }
+  .delivery-item label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+  .delivery-item .date { font-size: 18px; font-weight: 700; }
+  .delivery-item .days { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 8px; }
+  .days.ok { background: var(--success-dim); color: var(--success); }
+  .days.warn { background: rgba(245,158,11,0.15); color: var(--warning); }
+  .days.late { background: var(--danger-dim); color: var(--danger); }
+
+  /* Timer */
+  .timer-block {
+    background: var(--surface2);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .timer-block label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+  #timer-display {
+    font-family: var(--mono);
+    font-size: 32px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+  #timer-display.stopped { color: var(--text-dim); }
+
+  /* Progress pipeline */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .pipe-step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    position: relative;
+  }
+  .pipe-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 10px;
+    width: 50%;
+    height: 2px;
+    background: var(--border);
+    z-index: 0;
+  }
+  .pipe-step:not(:first-child)::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 10px;
+    width: 50%;
+    height: 2px;
+    background: var(--border);
+    z-index: 0;
+  }
+  .pipe-step.done::after, .pipe-step.done::before { background: var(--success); }
+  .pipe-step.active::before { background: var(--success); }
+  .pipe-step.active::after { background: var(--border); }
+
+  .pipe-dot {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px;
+  }
+  .pipe-step.done .pipe-dot { background: var(--success); border-color: var(--success); }
+  .pipe-step.done .pipe-dot::after { content: '✓'; color: white; font-weight: 900; font-size: 10px; }
+  .pipe-step.active .pipe-dot { background: var(--accent); border-color: var(--accent); animation: blink 1.5s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } 50% { box-shadow: 0 0 0 6px rgba(59,130,246,0.3); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pipe-step.active .pipe-dot::after { content: '●'; color: white; font-size: 8px; }
+
+  .pipe-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); text-align: center; line-height: 1.2; }
+  .pipe-step.done .pipe-label, .pipe-step.active .pipe-label { color: var(--text); font-weight: 600; }
+
+  /* Action buttons */
+  .action-area { padding: 0 16px 24px; display: flex; flex-direction: column; gap: 10px; }
+
+  .btn-action {
+    width: 100%;
+    padding: 20px;
+    border: none;
+    border-radius: 14px;
+    font-family: var(--sans);
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.15s;
+    letter-spacing: 0.3px;
+  }
+  .btn-action:active { transform: scale(0.97); opacity: 0.9; }
+  .btn-action.start { background: var(--success); color: white; }
+  .btn-action.finish { background: var(--accent); color: white; }
+  .btn-action.secondary {
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 14px;
+    padding: 14px;
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 100;
+    white-space: nowrap;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--success); color: var(--success); }
+  #toast.error { border-color: var(--danger); color: var(--danger); }
+  #toast.info { border-color: var(--accent); color: var(--accent); }
+
+  /* Modal */
+  #modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 50;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  #modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 500px;
+    padding: 24px 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal h3 { font-size: 18px; font-weight: 700; }
+  .modal p { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
+
+  /* Celda selector for ensamblaje */
+  .celda-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+  .celda-btn {
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 14px 4px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .celda-btn:hover, .celda-btn.selected { background: var(--accent); border-color: var(--accent); color: white; }
+
+  /* Escáner de cámara */
+  #scanner-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: #000;
+    z-index: 60;
+    flex-direction: column;
+  }
+  #scanner-overlay.show { display: flex; }
+
+  #scanner-video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  #scanner-ui {
+    position: absolute; inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .scanner-frame {
+    width: 260px; height: 260px;
+    position: relative;
+  }
+  .scanner-frame::before {
+    content: '';
+    position: absolute; inset: 0;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 16px;
+  }
+  /* Esquinas del visor */
+  .corner {
+    position: absolute;
+    width: 28px; height: 28px;
+    border-color: var(--accent);
+    border-style: solid;
+  }
+  .corner.tl { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 8px 0 0 0; }
+  .corner.tr { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 8px 0 0; }
+  .corner.bl { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 8px; }
+  .corner.br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 8px 0; }
+
+  /* Línea de escaneo animada */
+  .scan-line {
+    position: absolute;
+    left: 10px; right: 10px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scanMove 2s ease-in-out infinite;
+    border-radius: 2px;
+  }
+  @keyframes scanMove {
+    0% { top: 10px; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: calc(100% - 10px); opacity: 0; }
+  }
+
+  .scanner-label {
+    margin-top: 24px;
+    color: white;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: center;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  }
+  .scanner-sublabel {
+    margin-top: 6px;
+    color: rgba(255,255,255,0.6);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  #scanner-close {
+    position: absolute;
+    top: env(safe-area-inset-top, 16px);
+    right: 16px;
+    margin-top: 16px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    color: white;
+    font-size: 20px;
+    width: 44px; height: 44px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: all;
+    backdrop-filter: blur(8px);
+  }
+
+  #scanner-result-flash {
+    position: absolute;
+    inset: 0;
+    background: rgba(59,130,246,0.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+  #scanner-result-flash.flash { opacity: 1; }
+
+  /* Log list */
+  .log-list { display: flex; flex-direction: column; gap: 6px; }
+  .log-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .log-item .log-icon { font-size: 14px; margin-top: 1px; }
+  .log-item .log-body { flex: 1; }
+  .log-item .log-op { font-family: var(--mono); font-weight: 500; }
+  .log-item .log-detail { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+  .log-item .log-time { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen">
+  <div class="logo">
+    <div class="logo-mark">🏭</div>
+    <h1>Rocheber</h1>
+    <span>Sistema de Trazabilidad</span>
+  </div>
+
+  <div class="setup-card">
+    <h2>Configurar esta estación</h2>
+
+    <div class="field">
+      <label>Estación de trabajo</label>
+      <select id="sel-estacion">
+        <option value="">— Seleccionar —</option>
+        <option value="CORTE">✂️ Corte de perfil</option>
+        <option value="MECANIZADO">⚙️ Mecanizado</option>
+        <option value="ENSAMBLAJE_C1">🔧 Ensamblaje · Celda 1</option>
+        <option value="ENSAMBLAJE_C2">🔧 Ensamblaje · Celda 2</option>
+        <option value="ENSAMBLAJE_C3">🔧 Ensamblaje · Celda 3</option>
+        <option value="ENSAMBLAJE_C4">🔧 Ensamblaje · Celda 4</option>
+        <option value="ENSAMBLAJE_C5">🔧 Ensamblaje · Celda 5</option>
+        <option value="ACRISTALAR">🔲 Acristalar</option>
+        <option value="EXPEDICION">📦 Expedición</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Operario</label>
+      <select id="sel-operario">
+        <option value="">— Seleccionar —</option>
+        <option value="OP001">Joan Martínez</option>
+        <option value="OP002">Pep Garcia</option>
+        <option value="OP003">Maria Puig</option>
+        <option value="OP004">Carlos Ruiz</option>
+        <option value="OP005">Anna Soler</option>
+        <option value="OP006">Miquel Vidal</option>
+      </select>
+    </div>
+
+    <button class="btn-primary" onclick="iniciarSesion()">Iniciar sesión →</button>
+  </div>
+
+  <!-- Banner: estación recordada -->
+  <div id="station-remembered" style="display:none;width:100%;max-width:420px;">
+    <div style="
+      background:var(--success-dim);
+      border:1px solid var(--success);
+      border-radius:12px;
+      padding:14px 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    ">
+      <div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--success);font-weight:600;margin-bottom:2px;">Estación guardada en este dispositivo</div>
+        <div style="font-size:15px;font-weight:700;" id="remembered-station-label"></div>
+      </div>
+      <button onclick="olvidarEstacion()" style="
+        background:transparent;
+        border:1px solid var(--border);
+        border-radius:8px;
+        color:var(--text-dim);
+        font-size:11px;
+        padding:6px 10px;
+        cursor:pointer;
+        white-space:nowrap;
+        font-family:var(--sans);
+      ">Cambiar</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP SCREEN -->
+<div id="app-screen">
+
+  <div class="header">
+    <div class="header-left">
+      <span class="header-station" id="header-station-name"></span>
+      <span class="header-op empty" id="header-op-id">Esperando escaneo...</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button onclick="cambiarTurno()" title="Cambiar operario" style="
+        background:var(--surface2);
+        border:1px solid var(--border);
+        border-radius:10px;
+        color:var(--text-dim);
+        font-size:18px;
+        width:42px;height:42px;
+        cursor:pointer;
+        display:flex;align-items:center;justify-content:center;
+        flex-shrink:0;
+      ">👤</button>
+    </div>
+  </div>
+
+  <!-- WAITING STATE -->
+  <div id="waiting-state">
+    <div class="scan-icon">📋</div>
+    <h2>Listo para escanear</h2>
+    <p>Pulsa el botón y apunta la cámara al código QR de la orden de producción</p>
+
+    <button class="btn-primary" onclick="abrirEscaner()" style="max-width:300px;font-size:18px;padding:20px;display:flex;align-items:center;justify-content:center;gap:10px;">
+      <span style="font-size:24px;">📷</span> Escanear QR
+    </button>
+
+    <div style="width:100%;max-width:360px;text-align:center;margin-top:8px;">
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">— o introduce el ID manualmente —</p>
+      <div class="manual-input">
+        <input type="text" id="manual-op-input" placeholder="OP-2026-00001"
+               onkeydown="if(event.key==='Enter') cargarOP(this.value.trim())">
+        <button onclick="cargarOP(document.getElementById('manual-op-input').value.trim())">OK</button>
+      </div>
+    </div>
+
+    <!-- Indicador de carga mientras consulta el Sheet -->
+    <div id="loading-msg" style="display:none;flex-direction:column;align-items:center;gap:10px;margin-top:8px;">
+      <div style="
+        width:40px;height:40px;
+        border:3px solid var(--border);
+        border-top-color:var(--accent);
+        border-radius:50%;
+        animation:spin 0.8s linear infinite;
+      "></div>
+      <p style="font-size:14px;color:var(--text-dim);">Consultando sistema...</p>
+    </div>
+
+    <div id="log-section" style="width:100%;max-width:420px;display:none;">
+      <p style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:8px;">Últimas acciones</p>
+      <div class="log-list" id="log-list"></div>
+    </div>
+  </div>
+
+  <!-- OP STATE -->
+  <div id="op-state">
+    <div class="op-card">
+      <div class="op-card-header">
+        <span class="op-id" id="card-op-id"></span>
+        <span class="status-badge" id="card-status"></span>
+      </div>
+      <div class="op-card-body">
+
+        <div class="info-grid">
+          <div class="info-item full">
+            <label>Cliente</label>
+            <div class="value" id="card-cliente"></div>
+          </div>
+          <div class="info-item">
+            <label>Tipo de ventana</label>
+            <div class="value" id="card-tipo"></div>
+          </div>
+          <div class="info-item">
+            <label>Dimensiones</label>
+            <div class="value" id="card-dims"></div>
+          </div>
+          <div class="info-item">
+            <label>Cantidad</label>
+            <div class="value big" id="card-cantidad"></div>
+          </div>
+          <div class="info-item">
+            <label>Material</label>
+            <div class="value" id="card-material" style="font-size:13px;"></div>
+          </div>
+        </div>
+
+        <div class="delivery-item" id="delivery-block">
+          <div>
+            <label>Fecha de entrega</label>
+            <div class="date" id="card-fecha"></div>
+          </div>
+          <span class="days" id="card-dias"></span>
+        </div>
+
+        <div class="timer-block" id="timer-block" style="display:none">
+          <div>
+            <label>Tiempo en estación</label>
+            <div style="font-size:12px;color:var(--text-dim)" id="timer-start-label"></div>
+          </div>
+          <div id="timer-display">00:00:00</div>
+        </div>
+
+        <div>
+          <p style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:10px;">Progreso de fabricación</p>
+          <div class="pipeline" id="pipeline"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION AREA (always visible when OP loaded) -->
+  <div class="action-area" id="action-area" style="display:none">
+    <button class="btn-action start" id="btn-iniciar" onclick="registrarEvento('INICIO')" style="display:none">
+      ▶ INICIAR en esta estación
+    </button>
+    <button class="btn-action finish" id="btn-finalizar" onclick="registrarEvento('FIN')" style="display:none">
+      ✓ FINALIZAR y pasar a siguiente
+    </button>
+    <button class="btn-action secondary" onclick="cancelarOP()">← Escanear otra orden</button>
+  </div>
+
+</div>
+
+<!-- ESCÁNER DE CÁMARA -->
+<div id="scanner-overlay">
+  <video id="scanner-video" autoplay playsinline muted></video>
+  <canvas id="scanner-canvas" style="display:none"></canvas>
+  <div id="scanner-result-flash"></div>
+  <div id="scanner-ui">
+    <div class="scanner-frame">
+      <div class="corner tl"></div>
+      <div class="corner tr"></div>
+      <div class="corner bl"></div>
+      <div class="corner br"></div>
+      <div class="scan-line"></div>
+    </div>
+    <p class="scanner-label">Centra el código QR en el recuadro</p>
+    <p class="scanner-sublabel" id="scanner-status">Iniciando cámara...</p>
+  </div>
+  <button id="scanner-close" onclick="cerrarEscaner()">✕</button>
+</div>
+
+<!-- MODAL (ahora solo para errores de cámara) -->
+<div id="modal-overlay">
+  <div class="modal">
+    <h3>📷 Cámara no disponible</h3>
+    <p>El navegador no puede acceder a la cámara. Posibles causas:</p>
+    <p style="font-size:12px;background:var(--surface2);padding:12px;border-radius:8px;">
+      • La página no está en HTTPS<br>
+      • No has dado permiso de cámara<br>
+      • Otro app está usando la cámara
+    </p>
+    <p>Puedes introducir el ID de la orden manualmente en el campo de texto.</p>
+    <button class="btn-primary" onclick="cerrarModal()">Entendido</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="jsqr.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
