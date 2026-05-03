@@ -1,5 +1,5 @@
 // ── CONFIGURACIÓN ──
-const APPS_SCRIPT_URL = "https://miguelcastellop.github.io/rocheber-tracker1/"; // 👈 PEGAR AQUÍ LA URL DEL WEB APP
+const APPS_SCRIPT_URL = ""; // 👈 PEGAR AQUÍ LA URL DEL WEB APP
  
 // ── CACHÉ LOCAL de OPs consultadas en esta sesión ──
 // Evita llamar al Sheet cada vez que se rescana la misma OP
@@ -120,20 +120,7 @@ async function cargarOP(opId) {
   mostrarCargando(true);
  
   try {
-    // Llamar via Netlify Function proxy (evita CORS)
-    const proxyUrl = `/proxy?action=getOP&op_id=${encodeURIComponent(opId)}`;
-    const resp = await fetch(proxyUrl);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const text = await resp.text();
- 
-    // Limpiar posibles caracteres extra antes de parsear
-    const clean = text.trim().replace(/^\)\]\}'/, "");
-    let data;
-    try {
-      data = JSON.parse(clean);
-    } catch(e) {
-      throw new Error("Respuesta inválida: " + text.slice(0, 80));
-    }
+    const data = await jsonp(APPS_SCRIPT_URL, { action: "getOP", op_id: opId });
  
     mostrarCargando(false);
  
@@ -166,35 +153,39 @@ async function cargarOP(opId) {
   }
 }
  
-// Llamada al Apps Script via JSONP (evita bloqueo CORS del navegador)
-function llamarScript(params) {
+// JSONP directo a Google Apps Script — sin proxy, sin CORS
+function jsonp(url, params, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
-    const cbName = "cb_" + Math.random().toString(36).slice(2);
-    const timeout = setTimeout(() => {
+    const cbName = "_cb" + Date.now();
+    let timer;
+ 
+    function cleanup() {
+      clearTimeout(timer);
       delete window[cbName];
-      reject(new Error("Timeout"));
-    }, 10000);
+      const el = document.getElementById("_jsonp");
+      if (el) el.remove();
+    }
+ 
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timeout — Google tardó demasiado"));
+    }, timeoutMs);
  
     window[cbName] = (data) => {
-      clearTimeout(timeout);
-      delete window[cbName];
-      const script = document.getElementById("jsonp-script");
-      if (script) script.remove();
+      cleanup();
       resolve(data);
     };
  
     const qs = Object.entries({ ...params, callback: cbName })
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join("&");
  
     const script = document.createElement("script");
-    script.id = "jsonp-script";
-    script.src = `${APPS_SCRIPT_URL}?${qs}`;
+    script.id = "_jsonp";
+    script.src = `${url}?${qs}`;
     script.onerror = () => {
-      clearTimeout(timeout);
-      delete window[cbName];
-      showToast("Error JSONP: " + script.src.slice(0, 60), "error");
-      reject(new Error("Script error"));
+      cleanup();
+      reject(new Error("No se pudo conectar con Google Apps Script"));
     };
     document.head.appendChild(script);
   });
@@ -578,3 +569,4 @@ window.addEventListener("DOMContentLoaded", () => {
     showToast(`QR detectado: ${pendingOP} — configura la estación`, "info");
   }
 });
+ 
