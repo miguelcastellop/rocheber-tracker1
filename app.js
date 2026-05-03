@@ -1,5 +1,5 @@
 // ── CONFIGURACIÓN ──
-const APPS_SCRIPT_URL = ""; // 👈 PEGAR AQUÍ LA URL DEL WEB APP
+const APPS_SCRIPT_URL = "https://miguelcastellop.github.io/rocheber-tracker1/"; // 👈 PEGAR AQUÍ LA URL DEL WEB APP
  
 // ── CACHÉ LOCAL de OPs consultadas en esta sesión ──
 // Evita llamar al Sheet cada vez que se rescana la misma OP
